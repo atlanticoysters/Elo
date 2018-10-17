@@ -157,35 +157,47 @@ struct IntervalEstimate {
 	bool upper_infinity = false;
 };
 
-/* Source: Abramowitz, M. & Stegun, I. (1964).
-Handbook of Mathematical Functions with Formulas, Graphs, and Mathematical Tables.
-Section 26.2.23. */
-double homf_tail(double p) {
+/* Compute quantile of normal distribution with mean 0 and variance 1.
+
+Algorithm from https://arxiv.org/pdf/1002.0567.pdf. */
+double normal_quantile(double p) {
 	if (p <= 0 || p >= 1) {
-		throw std::invalid_argument("p must be in [0,1].");
+		throw std::invalid_argument
+			("p must be in (0, 1).");
 	}
 
-	double c0 = 2.515517;
-	double c1 = 0.802853;
-	double c2 = 0.010328;
-	double d1 = 1.432788;
-	double d2 = 0.189269;
-	double d3 = 0.001308;
+	if (p >= 0.0465 && p <= 0.9535) {
+		const double a0_prime = 0.195740115269792;
+		const double a1_prime = -0.652871358365296;
+		const double a2 = 1.246899760652504;
+		const double b0 = 0.155331081623168;
+		const double b1 = -0.839293158122257;
 
-	double t = std::sqrt(std::log(1 / (p * p)));
-	return t - (c0 + c1 * t + c2 * t * t) / (1 + d1 * t + d2 * t * t + d3 * t * t * t);
-}
+		double q = p - 0.5;
+		double r = q * q;
 
-double quantile(double p) {
-	if (p < 0 || p > 1) {
-		throw std::invalid_argument("p must be in [0,1].");
+		return q * (a2 + (a1_prime * r + a0_prime) / (r * r + b1 * r + b0));
 	}
 
-	if (p < 0.5) {
-		return -homf_tail(p);
+	const double c0_prime = 16.682320830719986527;
+	const double c1_prime = 4.120411523939115059;
+	const double c2_prime = 0.029814187308200211;
+	const double c3 = -1.000182518730158122;
+	const double d0 = 7.173787663925508066;
+	const double d1 = 8.759693508958633869;
+	double r;
+	double sign;
+
+	if (p < 0.0465) {
+		r = std::sqrt(std::log(1 / (p * p)));
+		sign = 1;
 	} else {
-		return homf_tail(1 - p);
+		r = std::sqrt(std::log(1 / ((1 - p) * (1 - p))));
+		sign = -1;
 	}
+
+	return sign * (c3 * r + c2_prime + (c1_prime * r + c0_prime) /
+		 (r * r + d1 * r + d0));
 }
 
 // x successes in n trials using the Wilson score interval (see also https://arxiv.org/pdf/1303.1288.pdf).
